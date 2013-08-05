@@ -27,7 +27,7 @@ from neutron.openstack.common import log as logging
 LOG = logging.getLogger(__name__)
 quota_opts = [
     cfg.ListOpt('quota_items',
-                default=['network', 'subnet', 'port'],
+                default=['network', 'subnet', 'port', 'vnat'],
                 help=_('Resource name(s) that are supported in quota '
                        'features')),
     cfg.IntOpt('default_quota',
@@ -45,6 +45,10 @@ quota_opts = [
     cfg.IntOpt('quota_port',
                default=50,
                help=_('number of ports allowed per tenant, minus for '
+                      'unlimited')),
+    cfg.IntOpt('quota_vnat',
+               default=50,
+               help=_('number of vnats allowed per tenant, minus for '
                       'unlimited')),
     cfg.StrOpt('quota_driver',
                default='neutron.quota.ConfDriver',

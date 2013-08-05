@@ -158,6 +158,7 @@ class Subnet(model_base.BASEV2, HasId, HasTenant):
                                         lazy="joined",
                                         cascade='delete')
     enable_dhcp = sa.Column(sa.Boolean())
+    enable_nat = sa.Column(sa.Boolean())
     dns_nameservers = orm.relationship(DNSNameServer,
                                        backref='subnet',
                                        cascade='all, delete, delete-orphan')

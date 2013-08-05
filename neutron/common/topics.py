@@ -29,6 +29,7 @@ FIREWALL_PLUGIN = 'q-firewall-plugin'
 
 L3_AGENT = 'l3_agent'
 DHCP_AGENT = 'dhcp_agent'
+NAT_AGENT = 'nat_agent'
 
 
 def get_topic_name(prefix, table, operation):

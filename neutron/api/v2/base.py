@@ -22,6 +22,7 @@ from oslo.config import cfg
 
 from neutron.api import api_common
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
+from quantum.api.rpc.agentnotifiers import nat_rpc_agent_api
 from neutron.api.v2 import attributes
 from neutron.api.v2 import resource as wsgi_resource
 from neutron.common import exceptions
@@ -69,6 +70,7 @@ class Controller(object):
                               if info.get('required_by_policy')]
         self._publisher_id = notifier_api.publisher_id('network')
         self._dhcp_agent_notifier = dhcp_rpc_agent_api.DhcpAgentNotifyAPI()
+        self._nat_agent_notifier = nat_rpc_agent_api.NatAgentNotifyAPI()
         self._member_actions = member_actions
         self._primary_key = self._get_primary_key()
         if self._allow_pagination and self._native_pagination:
@@ -266,6 +268,10 @@ class Controller(object):
         if cfg.CONF.dhcp_agent_notification:
             self._dhcp_agent_notifier.notify(context, data, methodname)
 
+    def _send_nat_notification(self, context, data, methodname):
+        if cfg.CONF.nat_agent_notification:
+            self._nat_agent_notifier.notify(context, data, methodname)
+
     def index(self, request, **kwargs):
         """Returns a list of the requested entity."""
         parent_id = kwargs.get(self._parent_id_name)
@@ -382,6 +388,9 @@ class Controller(object):
             self._send_dhcp_notification(request.context,
                                          create_result,
                                          notifier_method)
+            self._send_nat_notification(request.context,
+                                        create_result,
+                                        notifier_method)
             return create_result
 
         kwargs = {self._parent_id_name: parent_id} if parent_id else {}
@@ -437,6 +446,9 @@ class Controller(object):
         self._send_dhcp_notification(request.context,
                                      result,
                                      notifier_method)
+        self._send_nat_notification(request.context,
+                                    result,
+                                    notifier_method)
 
     def update(self, request, id, body=None, **kwargs):
         """Updates the specified entity's attributes."""
@@ -490,6 +502,9 @@ class Controller(object):
         self._send_dhcp_notification(request.context,
                                      result,
                                      notifier_method)
+        self._send_nat_notification(request.context,
+                                    result,
+                                    notifier_method)
         return result
 
     @staticmethod

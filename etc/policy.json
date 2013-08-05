@@ -105,5 +105,11 @@
     "create_floatingip": "rule:regular_user",
     "update_floatingip": "rule:admin_or_owner",
     "delete_floatingip": "rule:admin_or_owner",
-    "get_floatingip": "rule:admin_or_owner"
+    "get_floatingip": "rule:admin_or_owner",
+
+    "create_vnat": "",
+    "get_vnat": "rule:admin_or_owner or rule:shared",
+    "create_vnat:shared": "rule:admin_only",
+    "update_vnat": "rule:admin_or_owner",
+    "delete_vnat": "rule:admin_or_owner"
 }

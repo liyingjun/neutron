@@ -28,6 +28,7 @@ from oslo.config import cfg
 from neutron.agent import securitygroups_rpc as sg_rpc
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
 from neutron.api.rpc.agentnotifiers import l3_rpc_agent_api
+from neutron.api.rpc.agentnotifiers import nat_rpc_agent_api
 from neutron.api.v2 import attributes
 from neutron.common import constants as q_const
 from neutron.common import exceptions as q_exc
@@ -41,6 +42,8 @@ from neutron.db import dhcp_rpc_base
 from neutron.db import extraroute_db
 from neutron.db import l3_gwmode_db
 from neutron.db import l3_rpc_base
+from neutron.db import nat_db
+from neutron.db import nat_rpc_base
 from neutron.db import portbindings_db
 from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_rpc_base as sg_db_rpc
@@ -61,6 +64,7 @@ LOG = logging.getLogger(__name__)
 
 class OVSRpcCallbacks(dhcp_rpc_base.DhcpRpcCallbackMixin,
                       l3_rpc_base.L3RpcCallbackMixin,
+                      nat_rpc_base.NatRpcCallbackMixin,
                       sg_db_rpc.SecurityGroupServerRpcCallbackMixin):
 
     # history
@@ -218,10 +222,12 @@ class AgentNotifierApi(proxy.RpcProxy,
 
 class OVSNeutronPluginV2(db_base_plugin_v2.NeutronDbPluginV2,
                          extraroute_db.ExtraRoute_db_mixin,
+                         nat_db.NAT_db_mixin,
                          l3_gwmode_db.L3_NAT_db_mixin,
                          sg_db_rpc.SecurityGroupServerRpcMixin,
                          agentschedulers_db.L3AgentSchedulerDbMixin,
                          agentschedulers_db.DhcpAgentSchedulerDbMixin,
+                         agentschedulers_db.NatAgentSchedulerDbMixin,
                          portbindings_db.PortBindingMixin):
 
     """Implement the Neutron abstractions using Open vSwitch.
@@ -252,7 +258,8 @@ class OVSNeutronPluginV2(db_base_plugin_v2.NeutronDbPluginV2,
                                     "binding", "quotas", "security-group",
                                     "agent", "extraroute",
                                     "l3_agent_scheduler",
-                                    "dhcp_agent_scheduler"]
+                                    "dhcp_agent_scheduler",
+                                    "nat"]
 
     @property
     def supported_extension_aliases(self):
@@ -303,6 +310,9 @@ class OVSNeutronPluginV2(db_base_plugin_v2.NeutronDbPluginV2,
         self.router_scheduler = importutils.import_object(
             cfg.CONF.router_scheduler_driver
         )
+        self.vnat_scheduler = importutils.import_object(
+            cfg.CONF.vnat_scheduler_driver
+        )
 
     def setup_rpc(self):
         # RPC support
@@ -314,6 +324,9 @@ class OVSNeutronPluginV2(db_base_plugin_v2.NeutronDbPluginV2,
         )
         self.agent_notifiers[q_const.AGENT_TYPE_L3] = (
             l3_rpc_agent_api.L3AgentNotify
+        )
+        self.agent_notifiers[q_const.AGENT_TYPE_NAT] = (
+            nat_rpc_agent_api.NatAgentNotify
         )
         self.callbacks = OVSRpcCallbacks(self.notifier, self.tunnel_type)
         self.dispatcher = self.callbacks.create_rpc_dispatcher()
