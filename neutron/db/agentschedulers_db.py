@@ -27,6 +27,7 @@ from neutron.db import model_base
 from neutron.db import models_v2
 from neutron.extensions import dhcpagentscheduler
 from neutron.extensions import l3agentscheduler
+from neutron.extensions import natagentscheduler
 from neutron.openstack.common import log as logging
 
 
@@ -41,10 +42,16 @@ AGENTS_SCHEDULER_OPTS = [
                default='neutron.scheduler.l3_agent_scheduler.ChanceScheduler',
                help=_('Driver to use for scheduling '
                       'router to a default L3 agent')),
+    cfg.StrOpt('vnat_scheduler_driver',
+               default='neutron.scheduler.nat_agent_scheduler.ChanceScheduler',
+               help=_('Driver to use for scheduling '
+                      'vnat to a default NAT agent')),
     cfg.BoolOpt('network_auto_schedule', default=True,
                 help=_('Allow auto scheduling networks to DHCP agent.')),
     cfg.BoolOpt('router_auto_schedule', default=True,
                 help=_('Allow auto scheduling routers to L3 agent.')),
+    cfg.BoolOpt('vnat_auto_schedule', default=True,
+                help=_('Allow auto scheduling vnats to NAT agent.')),
     cfg.IntOpt('dhcp_agents_per_network', default=1,
                help=_('Number of DHCP agents scheduled to host a network.')),
 ]
@@ -76,6 +83,17 @@ class RouterL3AgentBinding(model_base.BASEV2, models_v2.HasId):
                                           ondelete='CASCADE'))
 
 
+class VnatNatAgentBinding(model_base.BASEV2, models_v2.HasId):
+    """Represents binding between quantum vnats and nat agents"""
+
+    vnat_id = sa.Column(sa.String(36),
+                        sa.ForeignKey("vnats.id", ondelete='CASCADE'))
+    nat_agent = orm.relation(agents_db.Agent)
+    nat_agent_id = sa.Column(sa.String(36),
+                             sa.ForeignKey("agents.id",
+                                           ondelete='CASCADE'))
+
+
 class AgentSchedulerDbMixin(agents_db.AgentDbMixin):
     """Common class for agent scheduler mixins."""
 
@@ -84,6 +102,7 @@ class AgentSchedulerDbMixin(agents_db.AgentDbMixin):
     agent_notifiers = {
         constants.AGENT_TYPE_DHCP: None,
         constants.AGENT_TYPE_L3: None,
+        constants.AGENT_TYPE_NAT: None,
         constants.AGENT_TYPE_LOADBALANCER: None,
     }
 
@@ -429,3 +448,110 @@ class DhcpAgentSchedulerDbMixin(dhcpagentscheduler
     def auto_schedule_networks(self, context, host):
         if self.network_scheduler:
             self.network_scheduler.auto_schedule_networks(self, context, host)
+
+class NatAgentSchedulerDbMixin(natagentscheduler
+                               .NatAgentSchedulerPluginBase,
+                               AgentSchedulerDbMixin):
+    """Mixin class to add NAT agent scheduler extension to db_plugin_base_v2.
+    """
+
+    vnat_scheduler = None
+
+    def get_nat_agents_hosting_vnats(
+            self, context, vnat_ids, active=None):
+        if not vnat_ids:
+            return []
+        query = context.session.query(VnatNatAgentBinding)
+        query = query.options(joinedload('nat_agent'))
+        if len(vnat_ids) == 1:
+            query = query.filter(
+                VnatNatAgentBinding.vnat_id == vnat_ids[0])
+        elif vnat_ids:
+            query = query.filter(
+                VnatNatAgentBinding.vnat_id in vnat_ids)
+        if active is not None:
+            query = (query.filter(agents_db.Agent.admin_state_up == active))
+
+        return [binding.nat_agent
+                for binding in query
+                if AgentSchedulerDbMixin.is_eligible_agent(active,
+                                                           binding.nat_agent)]
+
+    def add_vnat_to_nat_agent(self, context, id, vnat_id):
+        with context.session.begin(subtransactions=True):
+            agent_db = self._get_agent(context, id)
+            if (agent_db['agent_type'] != constants.AGENT_TYPE_NAT or
+                    not agent_db['admin_state_up']):
+                raise natagentscheduler.InvalidNATAgent(id=id)
+            nat_agents = self.get_nat_agents_hosting_vnats(
+                context, [vnat_id])
+            for nat_agent in nat_agents:
+                if id == nat_agent.id:
+                    raise natagentscheduler.VnatHostedByNATAgent(
+                        vnat_id=vnat_id, agent_id=id)
+            binding = VnatNatAgentBinding()
+            binding.nat_agent_id = id
+            binding.vnat_id = vnat_id
+            context.session.add(binding)
+
+    def remove_vnat_from_nat_agent(self, context, id, vnat_id):
+        with context.session.begin(subtransactions=True):
+            try:
+                query = context.session.query(VnatNatAgentBinding)
+                binding = query.filter(
+                    VnatNatAgentBinding.vnat_id == vnat_id,
+                    VnatNatAgentBinding.nat_agent_id == id).one()
+            except exc.NoResultFound:
+                raise natagentscheduler.VnatNotHostedByNatAgent(
+                    vnat_id=vnat_id, agent_id=id)
+            context.session.delete(binding)
+
+    def list_vnats_on_nat_agent(self, context, id):
+        query = context.session.query(VnatNatAgentBinding.vnat_id)
+        query = query.filter(VnatNatAgentBinding.nat_agent_id == id)
+
+        vnat_ids = [item[0] for item in query]
+        if vnat_ids:
+            return {'vnats':
+                    self.get_vnats(context, filters={'id': vnat_ids})}
+        else:
+            return {'networks': []}
+
+    def list_active_vnats_on_active_nat_agent(self, context, host):
+        agent = self._get_agent_by_type_and_host(
+            context, constants.AGENT_TYPE_NAT, host)
+        if not agent.admin_state_up:
+            return []
+        query = context.session.query(VnatNatAgentBinding.vnat_id)
+        query = query.filter(VnatNatAgentBinding.nat_agent_id == agent.id)
+
+        vnat_ids = [item[0] for item in query]
+        if vnat_ids:
+            return self.get_vnats(
+                context,
+                filters={'id': vnat_ids, 'admin_state_up': [True]}
+            )
+        else:
+            return []
+
+    def list_nat_agents_hosting_vnat(self, context, vnat_id):
+        nat_agents = self.get_nat_agents_hosting_vnats(
+            context, [vnat_id])
+        agent_ids = [nat_agent.id for nat_agent in nat_agents]
+        if agent_ids:
+            return {
+                'agents': self.get_agents(context, filters={'id': agent_ids})}
+        else:
+            return {'agents': []}
+
+    def schedule_vnat(self, context, network_id):
+        if self.vnat_scheduler:
+            chosen_agent = self.vnat_scheduler.schedule(
+                self, context, network_id)
+            if not chosen_agent:
+                LOG.warn(_('Fail scheduling vnat %s'))
+            return chosen_agent
+
+    def auto_schedule_vnats(self, context, host):
+        if self.vnat_scheduler:
+            self.vnat_scheduler.auto_schedule_vnats(self, context, host)

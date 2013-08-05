@@ -23,6 +23,7 @@ PORT_STATUS_BUILD = 'BUILD'
 PORT_STATUS_DOWN = 'DOWN'
 PORT_STATUS_ERROR = 'ERROR'
 
+DEVICE_OWNER_NAT_INTF = "network:nat_interface"
 DEVICE_OWNER_ROUTER_INTF = "network:router_interface"
 DEVICE_OWNER_ROUTER_GW = "network:router_gateway"
 DEVICE_OWNER_FLOATINGIP = "network:floatingip"
@@ -67,6 +68,7 @@ AGENT_TYPE_OVS = 'Open vSwitch agent'
 AGENT_TYPE_LINUXBRIDGE = 'Linux bridge agent'
 AGENT_TYPE_NEC = 'NEC plugin agent'
 AGENT_TYPE_L3 = 'L3 agent'
+AGENT_TYPE_NAT = 'NAT agent'
 AGENT_TYPE_LOADBALANCER = 'Loadbalancer agent'
 L2_AGENT_TOPIC = 'N/A'
 
@@ -78,3 +80,7 @@ SORT_DIRECTION_DESC = 'desc'
 L3_AGENT_SCHEDULER_EXT_ALIAS = 'l3_agent_scheduler'
 DHCP_AGENT_SCHEDULER_EXT_ALIAS = 'dhcp_agent_scheduler'
 LBAAS_AGENT_SCHEDULER_EXT_ALIAS = 'lbaas_agent_scheduler'
+NAT_AGENT_SCHEDULER_EXT_ALIAS = 'nat_agent_scheduler'
+
+VNAT_TYPE_VM = 'VM'
+VNAT_TYPE_HYPER = 'HYPER'

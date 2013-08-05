@@ -77,12 +77,17 @@ core_opts = [
     cfg.BoolOpt('dhcp_agent_notification', default=True,
                 help=_("Allow sending resource operation"
                        " notification to DHCP agent")),
+    cfg.BoolOpt('nat_agent_notification', default=True,
+                help=_("Allow sending resource operation"
+                       " notification to NAT agent")),
     cfg.BoolOpt('allow_overlapping_ips', default=False,
                 help=_("Allow overlapping IP support in Neutron")),
     cfg.StrOpt('host', default=utils.get_hostname(),
                help=_("The hostname Neutron is running on")),
     cfg.BoolOpt('force_gateway_on_subnet', default=False,
                 help=_("Ensure that configured gateway is on subnet")),
+    cfg.ListOpt('default_vnat_ports', default=['22'],
+                help=_("The default ports for vm to nat")),
 ]
 
 core_cli_opts = [

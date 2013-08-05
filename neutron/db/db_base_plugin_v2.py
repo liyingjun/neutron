@@ -921,6 +921,7 @@ class NeutronDbPluginV2(neutron_plugin_base_v2.NeutronPluginBaseV2,
                                     for pool in subnet['allocation_pools']],
                'gateway_ip': subnet['gateway_ip'],
                'enable_dhcp': subnet['enable_dhcp'],
+               'enable_nat': subnet['enable_nat'],
                'dns_nameservers': [dns['address']
                                    for dns in subnet['dns_nameservers']],
                'host_routes': [{'destination': route['destination'],
@@ -1153,6 +1154,7 @@ class NeutronDbPluginV2(neutron_plugin_base_v2.NeutronPluginBaseV2,
                     'ip_version': s['ip_version'],
                     'cidr': s['cidr'],
                     'enable_dhcp': s['enable_dhcp'],
+                    'enable_nat': s['enable_nat'],
                     'gateway_ip': s['gateway_ip'],
                     'shared': network.shared}
             subnet = models_v2.Subnet(**args)
